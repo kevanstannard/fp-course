@@ -36,6 +36,36 @@ data List t =
   | t :. List t
   deriving (Eq, Ord)
 
+{-
+Note 1: ":." is pronounced "cons"
+
+Note 2: Operators can be infix or prefix, so these are the same:
+
+  -- infix
+  data List t = Nil | t :. List t
+    deriving (Eq, Ord)
+
+  -- prefix
+  data List t = Nil | (:.) t (List t)
+    deriving (Eq, Ord)
+
+Examples of lists:
+
+  Nil
+  1 :. Nil
+  2 :. 1 :. Nil
+  3 :. 2 :. 1 :. Nil
+
+Standard library Haskell uses:
+
+  1 : 2 : 3 : []
+  
+  or
+
+  [1, 2, 3]
+
+-}
+
 -- Right-associative
 infixr 5 :.
 
@@ -54,9 +84,84 @@ foldRight :: (a -> b -> b) -> b -> List a -> b
 foldRight _ b Nil      = b
 foldRight f b (h :. t) = f h (foldRight f b t)
 
+{-
+When you see "foldRight", think CONSTRUCTOR REPLACEMENT.
+
+Consider
+
+  foldRight (+) 0 (1 :. 2 :. 3 :. Nil)
+
+Replace ":." with "+" and Nil with 0
+
+  = 1 + 2 + 3 + 0
+
+We are replacing the constructors (:.) and Nil
+with the values (+) and 0
+
+With foldRight think of replacing the constructors with some other values.
+
+A more generic/polymorphic example:
+
+  foldRight f a (1 :. 2 :. 3 :. Nil)
+  = 1 `f` 2 `f` 3 `f` a
+  = f 1 (f 2 (f 3 a))
+
+^^^ THIS - SEE THE "RIGHT" BEHAVIOUR, I.E. RIGHT MOST VALUES ARE APPLIED FIRST
+
+*** JUST REMEMBER CONSTRUCTOR REPLACEMENT ***
+
+-}
+
 foldLeft :: (b -> a -> b) -> b -> List a -> b
 foldLeft _ b Nil      = b
 foldLeft f b (h :. t) = let b' = f b h in b' `seq` foldLeft f b' t
+
+{-
+Notes:
+  * foldLeft is not as useful.
+  * Everything foldLeft can do, foldRight can do as well.
+
+THINK ABOUT IT AS A FOR LOOP
+
+FOLDLEFT AND FOLDRIGHT ARE NOT ABOUT DIRECTIONS
+
+Consider
+
+  foldLeft (+) 0 xs
+
+Example in JS:
+
+  var acc = 0;
+  xs.forEach(x -> {
+    acc = acc + x;
+  })
+  return acc
+
+And a generalised version:
+
+  foldLeft f z xs
+
+Then in JS:
+
+  var acc = z;
+  xs.forEach(x -> {
+    acc = f(acc, x);
+  })
+  return acc
+
+Consider
+
+  1 :. 2 :. 3 :. Nil
+
+Then using foldLeft (+) 0
+
+  = (+) ((+) ((+) 0 1) 2) 3
+
+And the generalised version
+
+  = f (f (f a 1) 2) 3
+
+-}
 
 -- END Helper functions and data types
 
@@ -75,9 +180,18 @@ headOr ::
   a
   -> List a
   -> a
-headOr =
-  error "todo: Course.List#headOr"
+headOr a Nil = a
+headOr _ (x :. _) = x
 
+headOr' :: a -> List a -> a
+headOr' a xs = foldRight (\x _ -> x) a xs
+
+headOr'' :: a -> List a -> a
+headOr'' a xs = foldRight const a xs
+
+headOr''' :: a -> List a -> a
+headOr''' = foldRight const
+  
 -- | The product of the elements of a list.
 --
 -- >>> product Nil
@@ -91,8 +205,7 @@ headOr =
 product ::
   List Int
   -> Int
-product =
-  error "todo: Course.List#product"
+product = foldRight (*) 1
 
 -- | Sum the elements of the list.
 --
@@ -106,8 +219,7 @@ product =
 sum ::
   List Int
   -> Int
-sum =
-  error "todo: Course.List#sum"
+sum = foldRight (+) 0
 
 -- | Return the length of the list.
 --
@@ -118,8 +230,51 @@ sum =
 length ::
   List a
   -> Int
-length =
-  error "todo: Course.List#length"
+length = foldRight (\_ acc -> acc + 1) 0
+
+length' ::
+  List a
+  -> Int
+length' = foldRight (const (1+)) 0
+
+{-
+Why does this work?
+
+Consider the type of const:
+
+  >> :t const
+  const :: a -> b -> a
+
+const is a function that takes two values,
+and ALWAYS returns the first argument
+and ALWAYS ignores the second argument.
+
+Consider the type of (1+):
+
+  >> :t (1+)
+  (1+) :: Num a => a -> a
+
+Which means it's a function that needs one more argument.
+
+And together, we have:
+
+  >> :t const (1+)
+  const (1+) :: Num a => b -> a -> a
+
+The function needed by foldRight here has the type:
+
+  a -> Int -> Int
+
+Where
+  a = value from the list, which we want to ignore, not needed for count
+  First Int = accumulated value of the fold function
+  Second Int = new accumulated value
+
+The const (1+):
+  Ignore the first argument (b)
+  Adds 1 to the second argument (a)
+  Returns the result (a)
+-}
 
 -- | Map the given function on each element of the list.
 --
@@ -133,8 +288,28 @@ map ::
   (a -> b)
   -> List a
   -> List b
-map =
-  error "todo: Course.List#map"
+map f = foldRight (\x acc -> f x :. acc) Nil
+
+map' ::
+  (a -> b)
+  -> List a
+  -> List b
+map' f = foldRight (\x -> (f x :.)) Nil
+
+-- Using http://pointfree.io/
+map'' ::
+  (a -> b)
+  -> List a
+  -> List b
+map'' f = foldRight ((:.) . f) Nil
+
+{-
+Note about: (:.) . f
+
+  The first argument x is passed to f
+  This is passed as the first argument to (:.)
+  The second argument acc is then passed to (:. x)
+-}
 
 -- | Return elements satisfying the given predicate.
 --
@@ -150,8 +325,8 @@ filter ::
   (a -> Bool)
   -> List a
   -> List a
-filter =
-  error "todo: Course.List#filter"
+filter f = foldRight (\x acc -> if (f x) then (x :. acc) else acc) Nil
+
 
 -- | Append two lists to a new list.
 --
@@ -169,8 +344,13 @@ filter =
   List a
   -> List a
   -> List a
-(++) =
-  error "todo: Course.List#(++)"
+-- (++) xs ys = foldRight (\x acc -> x :. acc) ys xs
+-- (++) xs ys = foldRight (:.) ys xs
+(++) = flip (foldRight (:.))
+
+{-
+(++) means "list append"
+-}
 
 infixr 5 ++
 
@@ -187,8 +367,7 @@ infixr 5 ++
 flatten ::
   List (List a)
   -> List a
-flatten =
-  error "todo: Course.List#flatten"
+flatten = foldRight (++) Nil
 
 -- | Map a function then flatten to a list.
 --
@@ -204,8 +383,10 @@ flatMap ::
   (a -> List b)
   -> List a
   -> List b
-flatMap =
-  error "todo: Course.List#flatMap"
+-- flatMap f = flatten . (foldRight (\l ls -> f l :. ls) Nil)
+-- flatMap f = flatten . (foldRight ((:.) . f) Nil)
+-- flatMap f xs = flatten (map f xs)
+flatMap f = flatten . map f
 
 -- | Flatten a list of lists to a list (again).
 -- HOWEVER, this time use the /flatMap/ function that you just wrote.
@@ -214,8 +395,7 @@ flatMap =
 flattenAgain ::
   List (List a)
   -> List a
-flattenAgain =
-  error "todo: Course.List#flattenAgain"
+flattenAgain = flatMap id
 
 -- | Convert a list of optional values to an optional list of values.
 --
@@ -243,7 +423,38 @@ seqOptional ::
   List (Optional a)
   -> Optional (List a)
 seqOptional =
-  error "todo: Course.List#seqOptional"
+  foldRight (twiceOptional (:.)) (Full Nil)
+
+{-
+Q: How to determine that twiceOptional is helpful?
+
+When we _cons as a hole for the foldRight function we get a type:
+
+  _cons :: Optional a -> Optional (List a) -> Optional (List a)
+
+We can see that twiceOptional UNWRAPS Optional values so you can
+operate on them, and it returns the result in an Optional,
+which is what we need here.
+
+  twiceOptional :: (a -> b -> c) -> Optional a -> Optional b -> Optional c
+
+Q: Why does twiceOptional (:.) work?
+
+This is the function for foldRight.
+
+It receives two arguments:
+[1] the value from the list, e.g. "x", and
+[2] the accumulated list so far, e.g. "xs".
+
+If we apply (:.) to these values, it creates a new list:
+
+  (:.) x xs == x :. xs
+
+The longer version would be:
+
+  twiceOptional (\x xs -> x :. xs)
+
+-}
 
 -- | Find the first element in the list matching the predicate.
 --
@@ -265,8 +476,8 @@ find ::
   (a -> Bool)
   -> List a
   -> Optional a
-find =
-  error "todo: Course.List#find"
+find f = foldRight (\x xs -> if f x then Full x else xs) Empty
+
 
 -- | Determine if the length of the given list is greater than 4.
 --
@@ -284,8 +495,8 @@ find =
 lengthGT4 ::
   List a
   -> Bool
-lengthGT4 =
-  error "todo: Course.List#lengthGT4"
+lengthGT4 xs = (length xs) > 4
+
 
 -- | Reverse a list.
 --
@@ -301,8 +512,20 @@ lengthGT4 =
 reverse ::
   List a
   -> List a
-reverse =
-  error "todo: Course.List#reverse"
+-- reverse = foldLeft (\xs x -> x :. xs) Nil
+reverse = foldLeft (flip (:.)) Nil
+
+{-
+Reminder about foldLeft
+
+Suppose we have a list
+
+  1 :. 2 :. 3 :. Nil
+
+foldLeft operates as follows:
+
+  f (f (f Nil 1) 2) 3
+-}
 
 -- | Produce an infinite `List` that seeds with the given value at its head,
 -- then runs the given function for subsequent elements
@@ -331,7 +554,7 @@ notReverse ::
   List a
   -> List a
 notReverse =
-  error "todo: Is it even possible?"
+  reverse
 
 ---- End of list exercises
 
