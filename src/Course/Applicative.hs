@@ -30,10 +30,26 @@ import qualified Prelude as P(fmap, return, (>>=))
 class Functor f => Applicative f where
   pure ::
     a -> f a
-  (<*>) ::
+  (<*>) ::          -- This is the APPLY operator
     f (a -> b)
     -> f a
     -> f b
+
+
+-- Derive fmap using applicative
+
+-- >>> (+1) <$$> (1 :. 2 :. 3 :. Nil)
+-- [2,3,4]
+
+(<$$>) :: Applicative f =>
+  (a -> b)
+  -> f a
+  -> f b
+-- (<$$>) f fa =
+--   pure f <*> fa
+(<$$>) f =
+  (pure f <*>)
+
 
 infixl 4 <*>
 
@@ -48,14 +64,25 @@ instance Applicative ExactlyOne where
     a
     -> ExactlyOne a
   pure =
-    error "todo: Course.Applicative pure#instance ExactlyOne"
+    ExactlyOne
   (<*>) ::
     ExactlyOne (a -> b)
     -> ExactlyOne a
     -> ExactlyOne b
-  (<*>) =
-    error "todo: Course.Applicative (<*>)#instance ExactlyOne"
+  -- (<*>) f a = mapExactlyOne (runExactlyOne f) a
+  -- (<*>) f = mapExactlyOne (runExactlyOne f)
+  -- (<*>) = mapExactlyOne . runExactlyOne
+  -- (<*>) f a = (<$>) (runExactlyOne f) a
+  -- (<*>) f = (<$>) (runExactlyOne f)
+  (<*>) f = (runExactlyOne f <$>)
 
+{-
+runExactlyOne unwraps the function
+mapExactlyOne applies fmap
+
+so we can use fmap directly instead
+-}
+ 
 -- | Insert into a List.
 --
 -- prop> \x -> pure x == x :. Nil
@@ -67,13 +94,40 @@ instance Applicative List where
     a
     -> List a
   pure =
-    error "todo: Course.Applicative pure#instance List"
+    (:. Nil)
   (<*>) ::
     List (a -> b)
     -> List a
     -> List b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance List"
+  -- (<*>) fs vs =
+  --   foldRight (\f acc -> map f vs ++ acc) Nil fs
+  -- (<*>) fs vs =
+  --   flatten (map (\f -> map f vs) fs)
+  -- (<*>) fs vs =
+  --   flatten (map (\f -> (<$>) f vs) fs)
+  -- (<*>) fs vs =
+  --   flatten ((\f -> f <$> vs) <$> fs)
+  -- (<*>) fs vs =
+  --   flatten ((<$> vs) <$> fs)
+  -- (<*>) f a =
+  --   flatMap (\f' -> map f' a) f
+  -- (<*>) f a =
+  --   flatMap (flip map a) f
+  (<*>) f a =
+    flatMap (<$> a) f
+    
+{-
+Note:
+
+  flatMap :: (a -> List b) -> List a -> List b
+
+Note:
+  
+  (\f -> f <$> vs) === (<$> vs)
+
+(<$> vs) returns a function that accepts an argument
+and that argument gets applied as the first argument to <$>
+-}
 
 -- | Insert into an Optional.
 --
@@ -92,13 +146,62 @@ instance Applicative Optional where
     a
     -> Optional a
   pure =
-    error "todo: Course.Applicative pure#instance Optional"
+    Full
   (<*>) ::
     Optional (a -> b)
     -> Optional a
     -> Optional b
-  (<*>) =
-    error "todo: Course.Apply (<*>)#instance Optional"
+  -- (<*>) =
+  --   twiceOptional (\f a -> f a)
+  -- (<*>) =
+  --   twiceOptional (\f -> f)
+  -- (<*>) =
+  --   twiceOptional id
+  -- (<*>) = applyOptional
+  -- (<*>) f a =  f <$> _todo -- (\f' -> f' <$> a)
+  -- (<*>) f a = bindOptional (\f' -> f' <$> a) f
+  (<*>) f a = bindOptional (<$> a) f
+
+
+{-
+Recall:
+
+  bindOptional :: (a -> Optional b) -> Optional a -> Optional b
+  <$> :: (a -> b) :: f a -> f b
+
+
+How is this derived?
+
+Consider the signature of twiceOptional:
+
+  twiceOptional :: (a -> b -> c) -> Optional a -> Optional b -> Optional c
+
+Or, renaming to suit our purpose here:
+
+  twiceOptional :: (f -> a -> b) -> Optional f -> Optional a -> Optional b
+
+Just focusing on this part:
+
+  (f -> a -> b)
+
+This is a function that takes two arguments:
+  [1] function f
+  [2] value a
+
+When we call "id" with these two arguments:
+
+  (id f) a
+
+This is equivelent to:
+
+  f a
+
+Which is why passing a function to id works for the type:
+
+  (f -> a -> b)
+
+-}
+
 
 -- | Insert into a constant function.
 --
@@ -118,6 +221,8 @@ instance Applicative Optional where
 -- 15
 --
 -- prop> \x y -> pure x y == x
+
+{-
 instance Applicative ((->) t) where
   pure ::
     a
@@ -130,7 +235,24 @@ instance Applicative ((->) t) where
     -> ((->) t b)
   (<*>) =
     error "todo: Course.Apply (<*>)#instance ((->) t)"
+-}
 
+instance Applicative ((->) t) where
+  pure ::
+    a
+    -> (t -> a)
+  pure =
+    const
+  (<*>) ::
+    (t -> a -> b)
+    -> (t -> a)
+    -> (t -> b)
+  (<*>) ftab fta t =
+    ftab t (fta t)
+
+{-
+Reads a value from the "environment"
+-}
 
 -- | Apply a binary function in the environment.
 --
@@ -157,9 +279,38 @@ lift2 ::
   -> f a
   -> f b
   -> f c
-lift2 =
-  error "todo: Course.Applicative#lift2"
 
+-- lift2 f a b =
+--   f <$> a <*> b
+
+-- lift2 f fa fb =
+--   let fbc = f <$> fa      -- returns f (b -> c)
+--   in fbc <*> fb           -- returns f c
+
+-- lift2 f fa fb =
+--   f <$> fa <*> fb
+
+lift2 f fa =
+  (f <$> fa <*>)
+
+
+{-
+This is called "lift" because it lifts a function into the applicative f
+
+And lift2 because it takes two arguments.
+
+Reminder:
+
+  fmap lifts a basic function into a type
+
+    (<$>) :: (a -> b) -> f a -> f b
+
+  apply applies a function in a type onto value in the same type
+
+    (<*>) :: f (a -> b) -> f a -> f b
+
+-}
+ 
 -- | Apply a ternary function in the environment.
 -- /can be written using `lift2` and `(<*>)`./
 --
@@ -190,8 +341,20 @@ lift3 ::
   -> f b
   -> f c
   -> f d
-lift3 =
-  error "todo: Course.Applicative#lift3"
+
+
+-- lift3 f fa fb fc =
+--   lift2 f fa fb <*> fc
+
+-- lift3 f fa fb fc =
+--   let x = f <$> fa
+--       y = x <*> fb
+--       z = y <*> fc
+--   in z
+
+lift3 f fa fb fc =
+  f <$> fa <*> fb <*> fc
+
 
 -- | Apply a quaternary function in the environment.
 -- /can be written using `lift3` and `(<*>)`./
@@ -224,8 +387,19 @@ lift4 ::
   -> f c
   -> f d
   -> f e
-lift4 =
-  error "todo: Course.Applicative#lift4"
+
+-- lift4 f a b c d =
+--   lift3 f a b c <*> d
+
+lift4 f fa fb fc fd =
+  f <$> fa <*> fb <*> fc <*> fd
+
+{-
+Note:
+
+lift and fmap are the same thing/idea
+
+-}
 
 -- | Apply a nullary function in the environment.
 lift0 ::
@@ -233,7 +407,11 @@ lift0 ::
   a
   -> f a
 lift0 =
-  error "todo: Course.Applicative#lift0"
+  pure
+
+{-
+pure lifts a value into a type
+-}
 
 -- | Apply a unary function in the environment.
 -- /can be written using `lift0` and `(<*>)`./
@@ -251,9 +429,10 @@ lift1 ::
   (a -> b)
   -> f a
   -> f b
-lift1 =
-  error "todo: Course.Applicative#lift1"
 
+lift1 f a =
+  (lift0 f) <*> a
+   
 -- | Apply, discarding the value of the first argument.
 -- Pronounced, right apply.
 --
@@ -277,9 +456,36 @@ lift1 =
   f a
   -> f b
   -> f b
-(*>) =
-  error "todo: Course.Applicative#(*>)"
 
+-- (*>) a b =
+--   (const id <$> a) <*> b
+
+-- (*>) fa fb =
+--   lift2 (\_ b -> b) fa fb
+
+-- (*>) fa fb =
+--   lift2 (flip const) fa fb
+
+(*>) =
+  lift2 (flip const)
+
+{-
+Note:
+
+  lift2 :: Applicative f => (a -> b -> c) -> f a -> f b -> f c
+
+  We consider lift2 because the type closely matches what we need.
+  I.e. accept two arguments and return a result, all inside the same type constructor.
+
+  lift2 for lists also performs a product of the lists,
+  which is close to the output we are after.
+
+For comparison, same as:
+
+  flatMap (\_ -> 4 :. 5 :. Nil) (1 :. 2 :. 3 :. Nil)
+
+-}
+ 
 -- | Apply, discarding the value of the second argument.
 -- Pronounced, left apply.
 --
@@ -303,8 +509,19 @@ lift1 =
   f b
   -> f a
   -> f b
+
+-- (<*) fb fa =
+--   lift2 (\b _ -> b) fb fa
+
+-- (<*) fb fa =
+--   lift2 const fb fa
+
 (<*) =
-  error "todo: Course.Applicative#(<*)"
+  lift2 const
+
+{-
+Using the principles from the previous example.
+-}
 
 -- | Sequences a list of structures to a structure of list.
 --
@@ -326,9 +543,39 @@ sequence ::
   Applicative f =>
   List (f a)
   -> f (List a)
-sequence =
-  error "todo: Course.Applicative#sequence"
 
+sequence =
+  foldRight (lift2 (:.)) (pure Nil)
+  
+{-
+Another way of thinking about sequence: It flips the type constructors around.
+-}
+
+{-
+Why use foldRight?
+
+  Reduce a list of values to a single value.
+
+Compare this to sequenceOptional
+
+  seqOptional ::
+    List (Optional a)
+    -> Optional (List a)
+  seqOptional =
+    foldRight (twiceOptional (:.)) (Full Nil)
+
+Now we're generalising it.
+
+What is the type of twiceOptional?
+
+  twiceOptional :: (a -> b -> c) -> Optional a -> Optional b -> Optional c
+
+Looking at the type signature, what does that look like?
+
+  lift2 :: Applicative f => (a -> b -> c) -> f a -> f b -> f c
+
+-}
+  
 -- | Replicate an effect a given number of times.
 --
 -- /Tip:/ Use `Course.List#replicate`.
@@ -352,9 +599,24 @@ replicateA ::
   Int
   -> f a
   -> f (List a)
-replicateA =
-  error "todo: Course.Applicative#replicateA"
 
+replicateA n fa =
+  let as = replicate n fa     --- List (f a)
+  in sequence as              --- f (List a)
+
+{-
+We use replicate for:
+
+  f a ----> List (f a)
+
+We then need to get
+
+  List (f a) ------> f (List a)
+
+Which is what sequence does :)
+
+-}
+  
 -- | Filter a list with a predicate that produces an effect.
 --
 -- >>> filtering (ExactlyOne . even) (4 :. 5 :. 6 :. Nil)
@@ -380,8 +642,35 @@ filtering ::
   (a -> f Bool)
   -> List a
   -> f (List a)
-filtering =
-  error "todo: Course.Applicative#filtering"
+
+-- filtering p as =
+--   foldRight (\a fas ->
+--       lift2 (\b as' -> if b then a :. as' else as') (p a) fas
+--     ) (pure Nil) as
+
+filtering p as =
+  foldRight (\a fas -> lift2 (f a) (p a) fas) (pure Nil) as
+  where f a b as' = if b then a :. as' else as'
+  
+{-
+TIP #1:
+
+  Memorise the different strategies for "unwrapping" and "wrapping".
+  This is fundamental to working with different types.
+
+TIP #2:
+
+  Memorise the different type signatures of these utility functions.
+  This is useful when doing hole driven development and you are looking
+  for a type signature to help solve a problem.
+  This is so fundamental, just consider fmap, apply and bind!
+
+TIP #3:
+
+  Try to describe the purpose of what each of these utility functions provide,
+  rather than just what they do algorithmically.
+
+-}
 
 -----------------------
 -- SUPPORT LIBRARIES --
