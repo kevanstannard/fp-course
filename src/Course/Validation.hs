@@ -17,8 +17,32 @@ import Course.Core
 -- >>> instance Arbitrary a => Arbitrary (Validation a) where arbitrary = P.fmap (P.either Error Value) arbitrary
 data Validation a = Error Err | Value a
   deriving (Eq, Show)
+{-
+Purpose:
+* Type Syntax
+
+Notes:
+* Declares a type constructor `Validation` that has a type argument `a`
+* Declares two data constructors
+
+Examples:
+
+>> Value "Hello"
+
+>> Value 3
+
+>> Error "Message"
+-}
 
 type Err = P.String
+{-
+Purpose:
+* Type syntax
+
+Notes:
+* Declares an alias for a String
+
+-}
 
 -- | Returns whether or not the given validation is an error.
 --
@@ -32,6 +56,10 @@ type Err = P.String
 isError :: Validation a -> Bool
 isError (Error _) = True
 isError (Value _) = False
+{-
+Notes:
+* Uses pattern matching on the Validation values.
+-}
 
 -- | Returns whether or not the given validation is a value.
 --
@@ -44,6 +72,13 @@ isError (Value _) = False
 -- prop> \x -> isValue x /= isError x
 isValue :: Validation a -> Bool
 isValue = not . isError
+{-
+Notes:
+* Equivalent to:
+  ```
+  isValue a = not (isError a)
+  ```
+-}
 
 -- | Maps a function on a validation's value side.
 --
@@ -57,6 +92,11 @@ isValue = not . isError
 mapValidation :: (a -> b) -> Validation a -> Validation b
 mapValidation _ (Error s) = Error s
 mapValidation f (Value a) = Value (f a)
+{-
+Notes:
+* Notice that the type matches the fmap pattern (a -> b) -> f a -> f b
+* Notice that Error values are left unchanged and Value values have the function applied.
+-}
 
 -- | Binds a function on a validation's value side to a new validation.
 --
@@ -73,6 +113,10 @@ mapValidation f (Value a) = Value (f a)
 bindValidation :: (a -> Validation b) -> Validation a -> Validation b
 bindValidation _ (Error s) = Error s
 bindValidation f (Value a) = f a
+{-
+Notes:
+* Notice that the type matches the bind pattern: (a -> f b) -> f a -> f b
+-}
 
 -- | Returns a validation's value side or the given default if it is an error.
 --
