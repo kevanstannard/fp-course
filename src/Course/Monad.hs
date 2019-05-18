@@ -36,7 +36,7 @@ Reminder:
 
   There are more types of Functors
 
-  Functorts go from f a -> f b
+  Functors go from f a -> f b
 
 -}
 
@@ -181,6 +181,8 @@ so we just need to flip them.
   (<$> fa) =<< fab
   
 {-
+Notice that this is the pattern for apply.
+
 This is to show that for  anything that's a Monad, we can derive the applicative.
 
 i.e. Don't use <*> apply to solve this.
@@ -193,7 +195,7 @@ Example:
 
   Consider fab :: f (a -> b), then using bind
 
-    (=<<) (ab -> _todo) fab
+    (=<<) (\ab -> _todo) fab
 
   Here ab :: (a -> b)
   
