@@ -28,15 +28,19 @@ class Applicative f => Monad f where
 {-
 For something to be a Monad, it already has to be an Applicative.
 
-Reminder:
+In the standard library we pronounce (>>=) bind.
 
-  (<$>)   ::   (a -> b) -> f a -> f b     -- fmap   // Covariant Functor
-  (<*>)   :: f (a -> b) -> f a -> f b     -- apply  // Applicative Functor
-  (=<<)   :: (a -> f b) -> f a -> f b     -- bind   // Monadic Functor
+Notes:
 
-  There are more types of Functors
+(<$>)  ::   (a -> b) -> f a -> f b     -- fmap   // Covariant Functor
+(<*>)  :: f (a -> b) -> f a -> f b     -- apply  // Applicative Functor
+(=<<)  :: (a -> f b) -> f a -> f b     -- bind   // Monadic Functor
 
-  Functors go from f a -> f b
+There are more types of Functors
+
+Functors go from f a -> f b
+
+We can derive a lot of useful functions from Monad.
 
 -}
 
@@ -72,7 +76,7 @@ instance Monad List where
     -> List a
     -> List b
   (=<<) =
-    flatMap       -- flatMap is bind
+    flatMap       -- flatMap is another name for bind
 
 {-
 How to solve?:
@@ -113,23 +117,26 @@ instance Monad ((->) t) where
   (=<<) ::
     (a -> t -> b)
     -> (t -> a)
-    -> (t -> b)
+    -> (t -> b)   -- We could remove the parentheses here if we wanted
 
-  -- Me
-  -- (=<<) f a =
-  --   (flip f) <*> a
+  -- (=<<) atb ta t =
+  --   let a = ta t
+  --   in atb a t
 
-  -- McKenner
   (=<<) atb ta t =
     atb (ta t) t
 
 {-
-How to solve?:
+Another way to solve:
 
 Look for a similar pattern in previous modules.
 Notice that the Functor module has a reader implementation.
-Next, notice that the only difference is the order of the arguments of the function,
-so we just need to flip them.
+Next, notice that the only difference is the order of the arguments
+of the function, so we just need to flip them.
+
+  (=<<) f a =
+    (flip f) <*> a
+
 -}
 
 
@@ -172,10 +179,10 @@ so we just need to flip them.
   -> f b
 
 -- (<**>) fab fa =
---   (=<<) (\ab -> ab <$> fa) fab
+--   (\ab -> ab <$> fa) =<< fab
 
 -- (<**>) fab fa =
---   (=<<) (<$> fa) fab
+--   (<$> fa) =<< fab
 
 (<**>) fab fa =
   (<$> fa) =<< fab
@@ -227,7 +234,7 @@ join ::
   -> f a
 
 -- join ffa =
---   id =<< ffa
+--   (\fa -> fa) =<< ffa
 
 join =
   (id =<<)
@@ -237,6 +244,10 @@ How to solve?:
 
   First, since we're doing a Monad exercise, we assume that bind should be used.
   Then just solve for types.
+
+This is cool because we use =<< to unwrap the outer `f`
+but because =<< does not re-wrap resulting expression (like <$> or <*> would)
+we are able to use `id` to just return the wrapped value.
 
 More examples:
 
@@ -311,11 +322,20 @@ infixl 1 >>=
   bfc =<< afb a
   
 {-
+Some people call this the fish operator.
+
 How to solve?:
 
   1. Pass a into (a -> f b) = f b
   2. Use >>= to pass f b into (b -> f c)
   3. Return the result, fc
+
+Notes:
+
+Compare the compose operation with this one:
+
+(.)   :: (b ->   c) -> (a ->   b) -> a ->   c
+(<=<) :: (b -> f c) -> (a -> f b) -> a -> f c
 
 -}
     
