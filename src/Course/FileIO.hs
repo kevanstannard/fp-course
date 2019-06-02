@@ -135,6 +135,13 @@ printFiles ::
   -> IO ()
 
 -- printFiles xs =
+--   let
+--     x = (\t -> printFile (fst t) (snd t)) <$> xs
+--     y = sequence x
+--     z = (\_ -> ()) <$> y
+--   in z
+  
+-- printFiles xs =
 --   let x = (\t -> printFile (fst t) (snd t)) <$> xs    -- List (IO ())
 --       y = sequence x                                  -- IO (List ())
 --       z = void y                                      -- IO ()
@@ -283,20 +290,21 @@ Which is `fmap`, or `<$>`
 
 -}
 
--- Given a file name, read it and for each line in that file, read and print contents of each.
+-- Given a file name, read it and for each line in that file,
+-- read and print contents of each.
 -- Use @getFiles@ and @printFiles@.
 run ::
   FilePath
   -> IO ()
 
--- run fp =
---   readFile fp >>= \content ->
---     getFiles (lines content) >>= printFiles
+run fp =
+  readFile fp >>= \content ->
+    getFiles (lines content) >>= printFiles
 
-run fp = do
-  content <- readFile fp
-  files <- getFiles (lines content)
-  printFiles files
+-- run fp = do
+--   content <- readFile fp
+--   files <- getFiles (lines content)
+--   printFiles files
 
 {-
 do notation is syntax sugar for calling bind multiple times
@@ -311,22 +319,33 @@ main ::
   IO ()
 
 -- main =
---   getArgs >>= (\xxs ->
---     case xxs of
---       Nil ->
---         putStrLn "No arguments"
---       x :. _ -> 
---         run x
---   )
+--   error "todo"
 
-main = do
-  xxs <- getArgs
-  case xxs of
-    Nil ->
-      putStrLn "No arguments"
-    x :. _ -> 
-      run x
- 
+main =
+  (\xs ->
+    case xs of
+      Nil ->
+        putStrLn "No arguments"
+      x :. _ ->                -- We only need the first argument 
+        run x
+  ) =<< getArgs
+
+-- main = do
+--   xxs <- getArgs
+--   case xxs of
+--     Nil ->
+--       putStrLn "No arguments"
+--     x :. _ -> 
+--       run x
+
+{-
+Notice:
+
+>> :t getArgs
+getArgs :: IO (List Chars)
+
+-}
+
 ----
 
 -- Was there was some repetition in our solution?
