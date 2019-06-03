@@ -70,8 +70,14 @@ instance (Applicative f, Applicative g) =>
     -> Compose f g a
     -> Compose f g b
 
+  -- (<*>) (Compose fgab) (Compose fga) =
+  --   Compose ((_todo <$> fgab) <*> fga)
+
   (<*>) (Compose fgab) (Compose fga) =
-    Compose (lift2 (<*>) fgab fga)
+    Compose (((<*>) <$> fgab) <*> fga)
+  
+  -- (<*>) (Compose fgab) (Compose fga) =
+  --   Compose (lift2 (<*>) fgab fga)
   
 {-
 Example:
@@ -92,7 +98,7 @@ instance (Monad f, Monad g) =>
     -> Compose f g b
 
 
-  (=<<) f (Compose fga) =
+  (=<<) =
     error "impossible"
 
 {-
