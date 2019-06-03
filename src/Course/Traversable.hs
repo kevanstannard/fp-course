@@ -30,10 +30,24 @@ class Functor t => Traversable t where
     -> t a
     -> f (t b)
 
-{-
-Traverse is similar to `sequence` (from Applicative) but is more general.
+-- Traverse is similar to `sequence` (from Applicative) but is more general.
+-- Notice that a traversible is a Functor, so supports fmap <$>
 
-Notice that a traversible is a Functor, so supports fmap <$>
+{-
+Concrete exampleW:
+
+  traverse ::
+    Applicative Optional =>
+    (a -> Full b)
+    -> ExactlyOne a
+    -> Full (ExactlyOne b)
+
+  traverse ::
+    Applicative f =>
+    (a -> Full b)
+    -> List a
+    -> Full (List b)
+
 -}
 
 instance Traversable List where
@@ -74,7 +88,6 @@ Examples:
 
   >> traverse (\a -> Full (a*2)) (ExactlyOne 2)
   Full (ExactlyOne 4)
-
 
 -}
   
@@ -202,20 +215,32 @@ In the case of Compose we have this:
 
 Compose (f (g a))
 \-----------/ ^
-    ^       |
-    |       +--- Value
-    |
-    +--- Wrapper
+      ^       |
+      |       +--- Value
+      |
+      +--- Wrapper
 
-So from the perspective of `traverse` our `t` is `Compose (f (g))`
+So considering the traverse types:
 
-Also, consider the type of `traverse`:
+  traverse ::
+    Applicative f =>
+    (a -> f b)
+    -> t a
+    -> f (t b)
 
-traverse :: (a -> h b) -> Compose f g a -> h (Compose f g b)
+And the traverse for Compose:
 
-Notice that the function is not wrapped in a type constructor,
+  traverse ::
+    Applicative h =>
+    (a -> h b)
+    -> Compose f g a
+    -> h (Compose f g b)
+
+From the perspective of `traverse` our `t` is `Compose (f (g))`
+
+Notice that the function (a -> f b) is not wrapped in a type constructor,
 so this has similarities to both fmap <$> and bind =<<, in that
-they all /unwrap/ values:
+they /unwrap/ values:
 
 fmap  <*> :: (a -> b)   -> f a -> f b
 bind  =<< :: (a -> f b) -> f a -> f b
@@ -309,15 +334,6 @@ Notice how the `h` is kept as the outer type.
   traverse f (Compose fga)=
     Compose <$> (traverse . traverse) f fga
 
-{-
-Note:
-
-The `traverse` function actually composes
-
--}
-
-
-
 
 
 -- | The `Product` data type contains one value from each of the two type constructors.
@@ -375,9 +391,11 @@ instance (Functor f, Functor g) =>
       gb = f <$> ga
     in Product fb gb
 
-  {-
-  Note: Interesting that we did not need to use `traverse`
-  -}
+{-
+Note:
+This is a Product of two Functors here, so we don't need to use `traverse`
+(that comes next).
+-}
 
 
 
@@ -416,15 +434,16 @@ instance (Traversable f, Traversable g) =>
     -> Product f g a
     -> h (Product f g b)
 
-  -- Use pattern matching to get access to the Product values
-  -- Then apply traverse to the product values
-  -- traverse f (Product fa ga) =
-  --   let
-  --     hfb = traverse f fa     -- h (f b)
-  --     hgb = traverse f ga     -- h (g b)
-  --   in _todo
+{-
+  Use pattern matching to get access to the Product values
+  Then apply traverse to the product values
 
-  {-
+  traverse f (Product fa ga) =
+    let
+      hfb = traverse f fa     -- h (f b)
+      hgb = traverse f ga     -- h (g b)
+    in _todo
+
   We now have the following:
     h (f b)
     h (g b)
