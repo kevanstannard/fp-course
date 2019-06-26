@@ -36,6 +36,15 @@ data List t =
   | t :. List t
   deriving (Eq, Ord)
 
+{-
+(:.) is called 'cons'
+
+>> :t (:.)
+(:.) :: t -> List t -> List t
+
+Cons is right associative.
+-}
+
 -- Right-associative
 infixr 5 :.
 
@@ -58,6 +67,25 @@ foldLeft :: (b -> a -> b) -> b -> List a -> b
 foldLeft _ b Nil      = b
 foldLeft f b (h :. t) = let b' = f b h in b' `seq` foldLeft f b' t
 
+{-
+Pseudo code:
+
+foldLeft f z list {
+  var r = z
+  for (e in list) {
+    r = f(r, e)
+  }
+  return r
+}
+
+You cannot pass an infinite list to foldLeft.
+
+*** foldLeft does a loop ***
+*** foldRight does cons replacement ***
+
+-}
+
+
 -- END Helper functions and data types
 
 -- | Returns the head of the list or the given default.
@@ -71,12 +99,21 @@ foldLeft f b (h :. t) = let b' = f b h in b' `seq` foldLeft f b' t
 -- prop> \x -> x `headOr` infinity == 0
 --
 -- prop> \x -> x `headOr` Nil == x
-headOr ::
-  a
-  -> List a
-  -> a
-headOr =
-  error "todo: Course.List#headOr"
+headOr :: a -> List a -> a
+headOr x Nil = x
+headOr _ (h :. _) = h
+
+headOr' :: a -> List a -> a
+headOr' = \a -> \as ->
+  case as of
+    Nil -> a
+    h :. _ -> h
+
+headOr'' :: a -> List a -> a
+headOr'' a as =
+  case as of
+    Nil -> a
+    h :. _ -> h
 
 -- | The product of the elements of a list.
 --
@@ -91,8 +128,30 @@ headOr =
 product ::
   List Int
   -> Int
-product =
-  error "todo: Course.List#product"
+product Nil = 1
+product (h :. t) = h * (product t)
+
+product' ::
+  List Int
+  -> Int
+product' = \xs ->
+  case xs of
+    Nil -> 1
+    h :. t -> h * product' t
+
+product'' ::
+  List Int
+  -> Int
+product'' xs =
+  case xs of
+    Nil -> 1
+    h :. t -> h * product'' t
+
+product''' ::
+  List Int
+  -> Int
+product''' =
+  foldLeft (*) 1  
 
 -- | Sum the elements of the list.
 --
@@ -103,11 +162,64 @@ product =
 -- 10
 --
 -- prop> \x -> foldLeft (-) (sum x) x == 0
-sum ::
+sum :: List Int -> Int
+sum = \xs -> case xs of
+  Nil -> 0
+  h :. t -> h + sum t
+
+sum' ::
   List Int
   -> Int
-sum =
-  error "todo: Course.List#sum"
+sum' Nil =
+  0
+sum' (h :. t) =
+  h + sum' t
+
+sum'' :: List Int -> Int
+sum'' = foldLeft (+) 0
+
+kanst :: a -> b -> a
+kanst = \a _ -> a
+
+campase  :: (b -> c) -> (a -> b) -> a -> c
+campase = \f -> \g -> \a -> f (g a)
+
+{-
+There is a built in function (.) with this type
+-}
+
+{-
+Important note about compose:
+
+If you see the pattern
+
+  \x -> f (g x)
+
+Then we can just replace it with
+
+  f . g
+
+For example:
+
+  \r -> const ( (1+) r )
+
+Can be reduced to:
+
+  const . (1+)
+
+-}
+
+{-
+Similarly, if you see the pattern
+
+  \x -> f x
+
+Then we can just replace it with
+
+  f
+
+-}
+
 
 -- | Return the length of the list.
 --
@@ -118,8 +230,32 @@ sum =
 length ::
   List a
   -> Int
-length =
-  error "todo: Course.List#length"
+length = \xs -> case xs of
+  Nil -> 0
+  (:.) _ t -> 1 + (length t)
+
+length' ::
+  List a
+  -> Int
+length' Nil =
+  0
+length' (_ :. t) =
+  1 + (length' t)
+
+length'' ::
+  List a
+  -> Int
+length'' = foldLeft (\r _ -> 1 + r) 0
+
+length''' ::
+  List a
+  -> Int
+length''' = foldLeft (\r _ -> 1 + r) 0
+
+length'''' ::
+  List a
+  -> Int
+length'''' = foldLeft (const . (1+)) 0
 
 -- | Map the given function on each element of the list.
 --
@@ -134,7 +270,22 @@ map ::
   -> List a
   -> List b
 map =
-  error "todo: Course.List#map"
+  \f -> \xs -> case xs of
+    Nil -> Nil
+    (h :. t) -> (f h) :. (map f t)
+
+map' ::
+  (a -> b)
+  -> List a
+  -> List b
+map' _ Nil =
+  Nil
+map' f (h :. t) =
+  (f h) :. (map' f t)
+
+  
+-- bool :: a -> a -> Bool -> a
+-- bool a b p = if p then b elsxe a
 
 -- | Return elements satisfying the given predicate.
 --
@@ -150,8 +301,21 @@ filter ::
   (a -> Bool)
   -> List a
   -> List a
-filter =
-  error "todo: Course.List#filter"
+filter _ Nil = Nil
+
+-- filter p (h:.t) = if p h
+--   then h :. filter p t
+--   else filter p t
+
+-- filter p (h:.t) = if p h
+--   then (h:.) (filter p t)
+--   else (id) (filter p t)
+
+-- filter p (h:.t) =
+--   (if p h then (h:.) else (id)) (filter p t)
+
+filter p (h:.t) =
+  bool (id) (h:.) (p h) (filter p t)
 
 -- | Append two lists to a new list.
 --
@@ -169,10 +333,60 @@ filter =
   List a
   -> List a
   -> List a
-(++) =
-  error "todo: Course.List#(++)"
+
+-- (++) Nil ys = ys
+-- (++) (h:.t) ys = h :. (t ++ ys)
+
+-- (++) = \x y -> foldRight (:.) y x
+
+-- (++) = \x y -> flip (foldRight (:.)) x y
+
+(++) = flip (foldRight (:.))
+
+{-
+Important: foldLeft does a LOOP.
+
+foldLeft can't be used to write (++) because it won't work with infinity
+-}
 
 infixr 5 ++
+
+{-
+foldRight ::
+  (a -> b -> b)
+  -> b
+  -> List a
+  -> b
+
+Consider:
+  foldRight f  list
+
+foldRight does this:
+  Replace :. with f
+  Replace Nil with z
+
+*** foldLeft does a loop ***
+*** foldRight does cons replacement ***
+
+map f list = foldRight (\h t -> f h :. t) Nil list
+
+This function "(\h t -> f h :. t)" contains the tails /after/ the recursion.
+
+TODO: Solve headOr with foldRight
+-}
+
+{-
+1 :. 2 :. 3 :. Nil
+-}
+headOr2 :: a -> List a -> a
+-- headOr2 x xs = foldRight (\_ b -> b) x xs
+-- headOr2 x xs = foldRight const x xs
+headOr2 = foldRight const
+
+{-
+* Eta reduction is the process of reducing code into a point free form
+* Point full is the opposite of point free
+-}
 
 -- | Flatten a list of lists to a list.
 --
@@ -187,8 +401,16 @@ infixr 5 ++
 flatten ::
   List (List a)
   -> List a
-flatten =
-  error "todo: Course.List#flatten"
+
+-- flatten Nil = Nil
+-- flatten (h:.t) = h ++ flatten t
+
+flatten = foldRight (++) Nil
+{-
+Using cons replacement
+- replace (:.) with (++)
+- replace Nil with Nil
+-}
 
 -- | Map a function then flatten to a list.
 --
@@ -204,8 +426,37 @@ flatMap ::
   (a -> List b)
   -> List a
   -> List b
-flatMap =
-  error "todo: Course.List#flatMap"
+
+-- flatMap f = flatten . (map f)
+-- flatMap = (flatten .) . map
+
+-- flatMap f as = foldRight (\h t -> f h ++ t) Nil as
+-- flatMap f = foldRight (\h t -> f h ++ t) Nil
+-- flatMap f = foldRight (\h t -> (++) (f h) t) Nil
+-- flatMap f = foldRight (\h -> (++) (f h)) Nil
+flatMap f = foldRight ((++) . f) Nil
+-- p . q = \x -> p (q x) -- with p = (++), q = f
+
+{-
+How to think about this:
+* h is the head
+* t is the recursive result of the tail
+
+This is a Monad
+-}
+
+urlEncoder :: List Char -> List Char
+urlEncoder = flatMap (\c ->
+  case c of
+    ' ' -> '%' :. '2' :. '0' :. Nil
+    '=' -> '%' :. 'e' :. 'q' :. Nil
+    _ -> c :. Nil
+  )
+
+{-
+When would you use flatMap?
+When you have a for loop inside a for loop.
+-}
 
 -- | Flatten a list of lists to a list (again).
 -- HOWEVER, this time use the /flatMap/ function that you just wrote.
@@ -214,8 +465,14 @@ flatMap =
 flattenAgain ::
   List (List a)
   -> List a
-flattenAgain =
-  error "todo: Course.List#flattenAgain"
+-- flattenAgain aas = flatMap (\as -> as) aas
+flattenAgain = flatMap id
+
+{-
+Notice:
+flatMap f = foldRight ((++) .  f) Nil
+flatten   = foldRight ((++) . id) Nil
+-}
 
 -- | Convert a list of optional values to an optional list of values.
 --
@@ -301,8 +558,20 @@ lengthGT4 =
 reverse ::
   List a
   -> List a
-reverse =
-  error "todo: Course.List#reverse"
+-- reverse Nil = Nil
+-- reverse (h:.t) = reverse t ++ (h :. Nil)
+-- reverse xs = foldLeft (\as a -> a :. as) Nil xs
+-- reverse = foldLeft (\as a -> a :. as) Nil
+reverse = foldLeft (flip (:.)) Nil
+
+{-
+(++) runs through the whole list, and it does that the list lengh times
+= n * n times
+= O n^2
+
+Quadratic solution to what should be a linear solution.
+
+-}
 
 -- | Produce an infinite `List` that seeds with the given value at its head,
 -- then runs the given function for subsequent elements

@@ -82,49 +82,117 @@ the contents of c
 -- Given the file name, and file contents, print them.
 -- Use @putStrLn@.
 printFile ::
-  FilePath
-  -> Chars
+  FilePath  -- List Char
+  -> Chars  -- List Char
   -> IO ()
-printFile =
-  error "todo: Course.FileIO#printFile"
 
+printFile name contents =
+  putStrLn ("============ " ++ name) >>=
+  \_ -> putStrLn contents
+
+-- printFile =
+--   \name contents ->
+--     do
+--       putStrLn ("============ " ++ name)
+--       putStrLn contents
+  
 -- Given a list of (file name and file contents), print each.
 -- Use @printFile@.
 printFiles ::
   List (FilePath, Chars)
   -> IO ()
-printFiles =
-  error "todo: Course.FileIO#printFiles"
 
+-- printFiles fs =
+--   let
+--     -- x :: List (IO ())
+--     x = (\(name, contents) -> printFile name contents) <$> fs
+--     -- y :: IO (List ())
+--     y = (sequence x)
+--     -- z :: IO ()
+--     z = void y
+--   in z
+
+-- printFiles fs =
+--   let
+--     x = (\(name, contents) -> printFile name contents) <$> fs
+--     y = (sequence x)
+--     z = void y
+--   in z
+
+-- printFiles fs =
+--   void (sequence ((uncurry printFile) <$> fs))
+
+printFiles =
+  void . sequence . (<$>) (uncurry printFile) 
+  
 -- Given a file name, return (file name and file contents).
 -- Use @readFile@.
 getFile ::
   FilePath
   -> IO (FilePath, Chars)
-getFile =
-  error "todo: Course.FileIO#getFile"
+
+-- getFile p =
+--   let f = readFile p
+--   in (\content -> (p, content)) <$> f
+
+-- getFile =
+--   \p ->
+--     (\content -> (p, content)) <$> (readFile p)
+
+-- getFile =
+--   \name ->
+--     (\content -> (,) name content) <$> (readFile name)
+
+-- getFile =
+--   \name ->
+--     ((,) name) <$> (readFile name)
+
+-- getFile =
+--   \name ->
+--     (<$>) ((,) name) (readFile name)
+
+getFile = lift2 (<$>) (,) readFile
 
 -- Given a list of file names, return list of (file name and file contents).
 -- Use @getFile@.
 getFiles ::
   List FilePath
   -> IO (List (FilePath, Chars))
-getFiles =
-  error "todo: Course.FileIO#getFiles"
 
+-- getFiles =
+--   \ps -> sequence (getFile <$> ps)
+
+getFiles = sequence . (getFile <$>)
+  
 -- Given a file name, read it and for each line in that file, read and print contents of each.
 -- Use @getFiles@ and @printFiles@.
 run ::
   FilePath
   -> IO ()
-run =
-  error "todo: Course.FileIO#run"
+
+-- run p =
+--   readFile p >>= (
+--     \content -> (getFiles (lines content)) >>= printFiles
+--   )
+
+-- run p =
+--   readFile p >>=
+--   (\content -> (getFiles (lines content))) >>=
+--   printFiles
+
+run p =
+  readFile p >>=
+  (getFiles . lines) >>=
+  printFiles
 
 -- /Tip:/ use @getArgs@ and @run@
 main ::
   IO ()
 main =
-  error "todo: Course.FileIO#main"
+  getArgs >>= \args ->
+  case args of
+    Nil -> putStrLn "Pass args"
+    (h:._) -> run h 
 
 ----
 

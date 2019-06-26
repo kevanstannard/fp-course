@@ -8,6 +8,11 @@ import qualified Control.Monad as M
 import Course.Core
 import qualified Prelude as P
 
+{-
+Does Haskell have null?
+No, instead it has algebraic data types.
+-}
+
 -- | The `Optional` data type contains 0 or 1 value.
 --
 -- It might be thought of as a list, with a maximum length of one.
@@ -27,8 +32,9 @@ mapOptional ::
   (a -> b)
   -> Optional a
   -> Optional b
-mapOptional =
-  error "todo: Course.Optional#mapOptional"
+mapOptional _ Empty = Empty
+mapOptional f (Full a) = Full (f a)
+
 
 -- | Bind the given function on the possible value.
 --
@@ -44,8 +50,12 @@ bindOptional ::
   (a -> Optional b)
   -> Optional a
   -> Optional b
-bindOptional =
-  error "todo: Course.Optional#bindOptional"
+bindOptional _ Empty = Empty
+bindOptional f (Full a) = f a
+
+{-
+* This is like chaining null checks
+-}
 
 -- | Return the possible value if it exists; otherwise, the second argument.
 --
